@@ -2,6 +2,7 @@ package com.android.mynotesapp
 
 import android.content.ContentValues
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
@@ -9,8 +10,10 @@ import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import com.android.mynotesapp.adapter.MappingHelper
 import com.android.mynotesapp.databinding.ActivityNoteAddUpdateBinding
 import com.android.mynotesapp.db.DatabaseContract
+import com.android.mynotesapp.db.DatabaseContract.Notecolums.Companion.CONTENT_URI
 import com.android.mynotesapp.db.NoteHelper
 import com.android.mynotesapp.entity.Note
 import java.text.SimpleDateFormat
@@ -21,6 +24,7 @@ class NoteAddUpdateActivity : AppCompatActivity(), View.OnClickListener {
     private var note: Note? = null
     private var position: Int = 0
     private lateinit var noteHelper: NoteHelper
+    private lateinit var uriWithId: Uri
 
     private lateinit var binding: ActivityNoteAddUpdateBinding
 
@@ -56,6 +60,15 @@ class NoteAddUpdateActivity : AppCompatActivity(), View.OnClickListener {
         val btnTitle: String
 
         if (isEdit) {
+            // Uri yang di dapatkan disini akan digunakan untuk ambil data dari provider
+            // content://com.dicoding.picodiploma.mynotesapp/note/id
+            uriWithId = Uri.parse(CONTENT_URI.toString() + "/" + note?.id)
+            val cursor = contentResolver.query(uriWithId, null, null, null, null)
+            if (cursor != null) {
+                note = MappingHelper.mapCursorToObject(cursor)
+                cursor.close()
+            }
+
             actionBarTitle = "Ubah"
             btnTitle = "Update"
 
@@ -106,25 +119,20 @@ class NoteAddUpdateActivity : AppCompatActivity(), View.OnClickListener {
             Jika merupakan edit maka setresultnya UPDATE, dan jika bukan maka setresultnya ADD
             */
             if (isEdit) {
-                val result = noteHelper.update(note?.id.toString(), values)
-                if (result > 0) {
-                    setResult(RESULT_UPDATE, intent)
-                    finish()
-                } else {
-                    Toast.makeText(this@NoteAddUpdateActivity, "Gagal mengupdate data", Toast.LENGTH_SHORT).show()
-                }
-            } else {
-                note?.date = getCurrentDate()
-                values.put(DatabaseContract.Notecolums.DATE, getCurrentDate())
-                val result = noteHelper.insert(values)
+                // Gunakan uriWithId dari intent activity ini
+                // content://com.dicoding.picodiploma.mynotesapp/note/id
+                contentResolver.update(uriWithId, values, null, null)
+                Toast.makeText(this@NoteAddUpdateActivity, "Gagal mengupdate data", Toast.LENGTH_SHORT).show()
+                finish()
 
-                if (result > 0) {
-                    note?.id = result.toInt()
-                    setResult(RESULT_ADD, intent)
-                    finish()
-                } else {
-                    Toast.makeText(this@NoteAddUpdateActivity, "Gagal menambah data", Toast.LENGTH_SHORT).show()
-                }
+            } else {
+
+                values.put(DatabaseContract.Notecolums.DATE, getCurrentDate())
+                // Gunakan content uri untuk insert
+                // content://com.dicoding.picodiploma.mynotesapp/note/
+                contentResolver.insert(CONTENT_URI, values)
+                Toast.makeText(this, "Satu item berhasil disimpan", Toast.LENGTH_SHORT).show()
+                finish()
             }
         }
     }
@@ -183,15 +191,11 @@ class NoteAddUpdateActivity : AppCompatActivity(), View.OnClickListener {
                 if (isDialogClose) {
                     finish()
                 } else {
-                    val result = noteHelper.deleteById(note?.id.toString()).toLong()
-                    if (result > 0) {
-                        val intent = Intent()
-                        intent.putExtra(EXTRA_POSITION, position)
-                        setResult(RESULT_DELETE, intent)
-                        finish()
-                    } else {
-                        Toast.makeText(this@NoteAddUpdateActivity, "Gagal menghapus data", Toast.LENGTH_SHORT).show()
-                    }
+                    // Gunakan uriWithId untuk delete
+                    // content://com.dicoding.picodiploma.mynotesapp/note/id
+                    contentResolver.delete(uriWithId, null, null)
+                    Toast.makeText(this, "Satu item berhasil dihapus", Toast.LENGTH_SHORT).show()
+                    finish()
                 }
             }
             .setNegativeButton("Tidak") { dialog, _ -> dialog.cancel() }

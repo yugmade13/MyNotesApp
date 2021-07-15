@@ -1,12 +1,16 @@
 package com.android.mynotesapp
 
 import android.content.Intent
+import android.database.ContentObserver
 import android.os.Bundle
+import android.os.Handler
+import android.os.HandlerThread
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.android.mynotesapp.adapter.MappingHelper
 import com.android.mynotesapp.databinding.ActivityMainBinding
+import com.android.mynotesapp.db.DatabaseContract.Notecolums.Companion.CONTENT_URI
 import com.android.mynotesapp.db.NoteHelper
 import com.android.mynotesapp.entity.Note
 import com.google.android.material.snackbar.Snackbar
@@ -38,8 +42,19 @@ class MainActivity : AppCompatActivity() {
 
         binding.fabAdd.setOnClickListener {
             val intent = Intent(this@MainActivity, NoteAddUpdateActivity::class.java)
-            startActivityForResult(intent, NoteAddUpdateActivity.REQUEST_ADD)
+            startActivity(intent)
         }
+
+        val handlerThread = HandlerThread("DataObserver")
+        handlerThread.start()
+        val handler = Handler(handlerThread.looper)
+
+        val myObserver = object : ContentObserver(handler) {
+            override fun onChange(selfChange: Boolean) {
+                loadNotesAsync()
+            }
+        }
+        contentResolver.registerContentObserver(CONTENT_URI, true, myObserver)
 
         if (savedInstanceState == null) {
             loadNotesAsync()
@@ -57,7 +72,7 @@ class MainActivity : AppCompatActivity() {
             val noteHelper = NoteHelper.getInstance(applicationContext)
             noteHelper.open()
             val deferredNotes = async(Dispatchers.IO) {
-                val cursor = noteHelper.queryAll()
+                val cursor = contentResolver.query(CONTENT_URI, null, null, null, null)
                 MappingHelper.mapCursorToArrayList(cursor)
             }
 
